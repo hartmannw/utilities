@@ -1,0 +1,14 @@
+William Hartmann (hartmannw@gmail.com)
+This is free and unencumbered software released into the public domain.
+See the UNLICENSE file for more information.
+
+This is just a collection of basic scripts and utilities I use for manipulating
+data and running various experiments.
+
+htk/
+Contains scripts for manipulating data created by the Hidden Markov Model 
+Toolkit (HTK).
+
+stk/
+Scripts for modifying data and running the various utilities of the STK, a 
+proprietary toolkit used at LIMSI-CNRS
