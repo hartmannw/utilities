@@ -1,3 +1,6 @@
+# Repository Specific
+temp/
+
 *.py[cod]
 
 # C extensions
