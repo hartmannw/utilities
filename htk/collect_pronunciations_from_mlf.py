@@ -29,7 +29,7 @@ def main():
 def FindPronunciations(mlf, locationlist, sentid):
   mlffile = open(mlf, 'r')
   locationfile = open(locationlist, 'r')
-  overlap = 0.66
+  minoverlap = 0.1
 
   for line in locationfile:
     data = re.split(' ', line)
@@ -50,29 +50,33 @@ def FindPronunciations(mlf, locationlist, sentid):
       if phone['end'] > word['start']:
         foundstart = True
         phonelength = phone['end'] - phone['start']
+        overlap = (phone['end'] - word['start']) / phonelength
         # If at least half of the phone exists in the word span, we will 
         # consider it part of the pronunciation.
-        if (phonelength / overlap) >= (phone['end'] - word['start']):
+        if overlap >= minoverlap:
           pron.append(phone['name'])
     foundend = False
     while foundend == False:
       line = mlffile.readline()
       data = re.split(' ', line)
+      if len(data) < 3:
+        break
       phone = { 'name': data[2].strip(),
           'start': int(data[0]) / 100000,
           'end': int(data[1]) / 100000}
       if phone['end'] >= word['end']:
         foundend = True
         phonelength = phone['end'] - phone['start']
+        overlap = (word['end'] - phone['start']) / phonelength
         # If at least half of the phone exists in the word span, we will 
         # consider it part of the pronunciation.
-        if (phonelength / overlap) >= (phone['end'] - word['end']):
+        if overlap >= minoverlap:
           pron.append(phone['name'])
       else:
         pron.append(phone['name'])
 
-
-    PrintPronunciation(word['name'], pron)
+    if len(pron) > 0:
+      PrintPronunciation(word['name'], pron)
 
   mlffile.close()
   locationfile.close()
