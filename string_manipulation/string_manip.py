@@ -43,7 +43,7 @@ def EditDistance(target, guess):
         d[i][j] = minvalue
         if minindex == 0:
           transform[i][j] = transform[i-1][j-1].copy()
-          transform[i][j][str(i-1)] = guess[j-1]
+          transform[i][j][str(j-1)] = guess[i-1]
         elif minindex == 1:
           transform[i][j] = transform[i][j-1].copy()
           transform[i][j][str(j-1)] = ""
