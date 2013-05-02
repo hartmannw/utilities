@@ -11,11 +11,13 @@ import getopt, sys, string, re, operator, string_manip
 
 def main():
   try:
-    opts, args = getopt.getopt(sys.argv[1:], "hd:p:", 
-        ["help", "dictionary=", "pronunciation="])
+    opts, args = getopt.getopt(sys.argv[1:], "hd:p:e:s:f", 
+        ["help", "dictionary=", "pronunciation=", "examples=", 
+          "score=", "force"])
   except getopt.GetoptError:
     usage()
 
+  force_single_word = False
   for o, a in opts:
     if o in ("-h", "--help"):
       usage()
@@ -23,6 +25,12 @@ def main():
       dictfile = str(a);
     if o in ("-p", "--pronunciation"):
       hfile= str(a)
+    if o in ("-e", "--examples"):
+      min_examples = int(a)
+    if o in ("-s", "--score"):
+      min_score = float(a)
+    if o in ("-f", "--force"):
+      force_single_word = True
 
   # Load in the dictionary file
   dictionary = {}
@@ -32,52 +40,150 @@ def main():
     dictionary[data[0]] = data[1:]
   fin.close()
 
+  # Count the frequencies of each transformation
   count = {}
   fin = open(hfile, "r")
   for line in fin:
     data = re.split(" ", line.strip())
     pron = dictionary[data[0]]
-    print line.strip()
     distance, transform = string_manip.EditDistance(pron, data[1:])
     if len(transform) == distance:
       for i in range(len(pron)):
         sub = transform.get(str(i), pron[i])
         context = GenerateNGramSubstitutions(pron, i, sub)
+        ins = transform.get(str(i) + ':' + str(i+1), '')
+        context.update( GenerateNGramInsertion(pron, i, i+1, ins) )
+        if i == 0: # Allows for an insertion before first phone.
+          ins = transform.get(str(i-1) + ':' + str(i), '')
+          context.update( GenerateNGramInsertion(pron, i-1, i, ins) )
         for k,v in context.items():
           count[k] = count.get(k,{}) # Force it to be set
           count[k][v] = count.get(k,{}).get(v,0) + 1
   fin.close()
   
   # Now to evaluate the results
-  PrintTopChoice(count)
+  # PrintTopChoice(count, min_examples, min_score)
+  rules = SelectRules(count, min_examples, min_score, force_single_word)
 
-def PrintTopChoice(count):
+  # Transform original dictionary
+  fin = open(dictfile, "r")
+  for line in fin:
+    data = re.split(" ", line.strip() )
+    word = data[0]
+    orig = data[1:]
+    pron = TransformPronunciation(orig, rules)
+    print word + pron
+  fin.close()
+
+def TransformPronunciation(orig, rules):
+  pron =''
+  for i in range(len(orig)):
+    if i == 0: # Check if insertion before first character
+      context = GenerateNGramContext(orig, i-1, i, 3)
+      pron = pron + SelectTransform(context, rules, '')
+    # Handle substitution or deletion
+    context = GenerateNGramContext(orig, i, i, 3)
+    pron = pron + SelectTransform(context, rules, orig[i])
+    # Handle insertion
+    context = GenerateNGramContext(orig, i, i+1, 3)
+    pron = pron + SelectTransform(context, rules, '')
+  return pron
+
+def SelectTransform(context, rules, phone):
+  for c in context:
+    phone = rules.get(c, phone)
+  if len(phone) > 0:
+    phone = " " + phone
+  return phone
+
+def SelectRules(count, min_examples, min_score, force_single_word):
+  rules = {}
   for k,v in count.items():
     # first get total examples
     total = 0
     for c in v.values():
       total += c
-    if total > 0:
+    if total >= min_examples:
+      bestkey, bestvalue = max(v.iteritems(), key=operator.itemgetter(1))
+      if bestkey != GetMiddle(k): # Limits size of rule set.
+        bestvalue = float(bestvalue) / total
+        single_word = ( k.find('<w>') >= 0 and k.find('</w>') >= 0)
+        if bestvalue >= min_score or (single_word and force_single_word):
+          rules[k] = bestkey
+  return rules
+
+def PrintTopChoice(count, min_examples, min_score):
+  for k,v in count.items():
+    # first get total examples
+    total = 0
+    for c in v.values():
+      total += c
+    if total >= min_examples:
       bestkey, bestvalue = max(v.iteritems(), key=operator.itemgetter(1))
       if bestkey != GetMiddle(k):
         bestvalue = float(bestvalue) / total
-        print str(bestvalue) + " " + str(total) + " " + k + " " + bestkey
+        if bestvalue >= min_score:
+          if bestkey == '':
+            bestkey = "-"
+          ngram = '_'.join( re.split(' ', k))
+          print str(bestvalue) + " " + str(total) + " " + ngram + " " + bestkey
 
 def GetMiddle(s):
-  if len(s) % 2 == 0:
+  pron = re.split(" ", s)
+  if len(pron) % 2 == 0:
     return ''
-  middle = len(s) // 2
-  return s[middle]
+  middle = len(pron) // 2
+  return pron[middle]
+
+def GenerateNGramInsertion(pron, left, right, ins):
+  context = {}
+  k = GenerateKeyString(pron, left, right)
+  context[k] = ins
+  k = GenerateKeyString(pron, left-1, right+1)
+  context[k] = ins
+  k = GenerateKeyString(pron, left-2, right+2)
+  context[k] = ins
+  k = GenerateKeyString(pron, left-3, right+3)
+  context[k] = ins
+  return context
 
 def GenerateNGramSubstitutions(pron, index, sub):
   context = {}
-  context[pron[index]] = sub
+  k = GenerateKeyString(pron, index, index) # unigram
+  context[k] = sub
+  k = GenerateKeyString(pron, index-1, index+1) # trigram
+  context[k] = sub
+  k = GenerateKeyString(pron, index-2, index+2) # 5gram
+  context[k] = sub
+  k = GenerateKeyString(pron, index-3, index+3) # 7gram
+  context[k] = sub
   return context
+
+def GenerateNGramContext(pron, left, right, window):
+  context = []
+  for i in range(0, window+1):
+    context.append( GenerateKeyString(pron, left-i, right+i) )
+  return context
+
+def GenerateKeyString(pron, first, last):
+  s = ""
+  for i in range(first, last+1):
+    if i < 0:
+      s = s + "<w> "
+    elif i >= len(pron):
+      s = s + "</w> "
+    else:
+      s = s + pron[i] + " "
+  return s.strip()
+
 
 def usage():
   print ' --help Prints this message'
   print ' --dictionary= File containing the true dictionary'
   print ' --pronunciation= File containing set of pronunciation hypotheses'
+  print ' --examples= Minimum number of examples in order to consider rule'
+  print ' --score= Minimum score in order to consider rule'
+  print '--force= Add all rules that affect only one word'
   sys.exit(' ')
 
 if __name__ == "__main__":

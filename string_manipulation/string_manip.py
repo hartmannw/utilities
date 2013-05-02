@@ -50,5 +50,4 @@ def EditDistance(target, guess):
         else:
           transform[i][j] = transform[i-1][j].copy()
           transform[i][j][str(i-2) + ":" + str(i-1)] = guess[i-1]
-
   return d[n-1][m-1], transform[n-1][m-1]
