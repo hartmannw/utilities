@@ -9,6 +9,9 @@ htk/
 Contains scripts for manipulating data created by the Hidden Markov Model 
 Toolkit (HTK).
 
+math/
+Scripts that perform various mathematical functions, mostly on text files.
+
 oneoff/
 Scripts that are highly specialized to a particular situation. They are unlikely
 to be used in the future, but pieces of them might be of use.

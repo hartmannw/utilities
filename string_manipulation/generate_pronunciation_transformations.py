@@ -11,12 +11,13 @@ import getopt, sys, string, re, operator, string_manip
 
 def main():
   try:
-    opts, args = getopt.getopt(sys.argv[1:], "hd:p:e:s:f", 
+    opts, args = getopt.getopt(sys.argv[1:], "hd:p:e:s:c:f", 
         ["help", "dictionary=", "pronunciation=", "examples=", 
-          "score=", "force"])
+          "score=", "cost=", "force"])
   except getopt.GetoptError:
     usage()
 
+  cost = {}
   force_single_word = False
   for o, a in opts:
     if o in ("-h", "--help"):
@@ -29,6 +30,8 @@ def main():
       min_examples = int(a)
     if o in ("-s", "--score"):
       min_score = float(a)
+    if o in ("-c", "--cost"):
+      cost = LoadCostMatrix(str(a))
     if o in ("-f", "--force"):
       force_single_word = True
 
@@ -46,8 +49,8 @@ def main():
   for line in fin:
     data = re.split(" ", line.strip())
     pron = dictionary[data[0]]
-    distance, transform = string_manip.EditDistance(pron, data[1:])
-    if len(transform) == distance:
+    distance, transform = string_manip.EditDistance(pron, data[1:], cost)
+    if len(transform) >= distance:
       for i in range(len(pron)):
         sub = transform.get(str(i), pron[i])
         context = GenerateNGramSubstitutions(pron, i, sub)
@@ -74,6 +77,33 @@ def main():
     pron = TransformPronunciation(orig, rules)
     print word + pron
   fin.close()
+
+# Assumes the file contains a confusion matrix between phones with integer 
+# counts. The first line contains the total number of phones and each line
+# contains a model names. The actual confusion matrix follows the list of model
+# names.
+def LoadCostMatrix(cfile):
+  cost = {}
+  fin = open(cfile, "r")
+  # First line should contain the number of models
+  total = int(fin.readline().strip() )
+  models = []
+  for i in range(total):
+    models.append(fin.readline().strip() )
+    cost[ models[i] ] = {}
+  models.append("")
+  cost[""] = {} # Add row for insertion
+
+  for i in range(len(models)):
+    line = fin.readline().strip()
+    data = re.split(' ', line)
+    data = [int(item) for item in data]
+    total = float(sum(data)) # So that when normalizing, we get a float.
+    for j in range(len(data)):
+      cost[ models[i]][models[j]] = 1 - (data[j] / total)
+
+  fin.close()
+  return cost
 
 def TransformPronunciation(orig, rules):
   pron =''
@@ -183,7 +213,8 @@ def usage():
   print ' --pronunciation= File containing set of pronunciation hypotheses'
   print ' --examples= Minimum number of examples in order to consider rule'
   print ' --score= Minimum score in order to consider rule'
-  print '--force= Add all rules that affect only one word'
+  print ' --cost= Link to file containing the confusion matrix for phones'
+  print ' --force= Add all rules that affect only one word'
   sys.exit(' ')
 
 if __name__ == "__main__":

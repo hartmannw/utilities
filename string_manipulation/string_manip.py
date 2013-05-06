@@ -13,7 +13,7 @@ import operator
 # operations are stored, it only allows one string operation per position. If
 # the strings are significantly different in terms of length, then the
 # transformations may be incorrect.
-def EditDistance(target, guess):
+def EditDistance(target, guess, cost):
   n = len(guess) + 1
   m = len(target) + 1
   d = [[ 0 for i in range(m)] for j in range(n)]
@@ -35,9 +35,9 @@ def EditDistance(target, guess):
         d[i][j] = d[i-1][j-1]
         transform[i][j] = transform[i-1][j-1].copy()
       else:
-        deletion = d[i][j-1]+ 1
-        insertion = d[i-1][j]+ 1
-        substitution = d[i-1][j-1]+ 1
+        deletion = d[i][j-1]+ cost.get(target[j-1], {}).get("",1)
+        insertion = d[i-1][j]+ cost.get("", {}).get(guess[i-1],1)
+        substitution = d[i-1][j-1]+ cost.get(target[j-1], {}).get(guess[i-1],1)
         values = [substitution, deletion, insertion]
         minindex, minvalue = min(enumerate(values), key=operator.itemgetter(1))
         d[i][j] = minvalue
@@ -51,3 +51,4 @@ def EditDistance(target, guess):
           transform[i][j] = transform[i-1][j].copy()
           transform[i][j][str(i-2) + ":" + str(i-1)] = guess[i-1]
   return d[n-1][m-1], transform[n-1][m-1]
+

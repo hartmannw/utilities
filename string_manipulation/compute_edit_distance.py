@@ -16,6 +16,8 @@ def main():
   except getopt.GetoptError:
     usage()
 
+  cost = {} # Just use default cost matrix.
+
   for o, a in opts:
     if o in ("-h", "--help"):
       usage()
@@ -28,7 +30,7 @@ def main():
   target = re.split(' ', target)
   guess = re.split(' ', guess)
 
-  distance, transformations = string_manip.EditDistance(target, guess)
+  distance, transformations = string_manip.EditDistance(target, guess, cost)
   print distance
   print transformations
 
